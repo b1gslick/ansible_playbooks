@@ -1,0 +1,119 @@
+-
+  name: install mysql on mysql server 
+  hosts: mysql
+  tasks: 
+    - name: Install MySQL-python
+      yum:
+        name:
+        - python3-pip
+        - MySQL-python
+      become: yes
+    - name: install firewall
+      yum:      
+        name: firewalld
+        state: present
+    - name: start firewall service
+      systemd:
+        name: firewalld
+        state: started
+        enabled: true
+      become: yes
+    - name: install maria db server
+      yum:
+        name: mariadb-server
+        state: present
+    - name: start mysql service
+      systemd:
+        name: mariadb
+        state: started
+        enabled: true
+      become: yes
+    - name: add firewall rule for db
+      firewalld:
+        port: 3306/tcp
+        permanent: true
+        state: enabled
+        zone: public
+      become: yes
+    - name: reload firewall 
+      systemd:
+        name: firewalld
+        state: restarted
+      become: yes
+    - name: drop db and user
+      community.mysql.mysql_query:
+        login_user: root
+        query:
+        - DROP DATABASE ecomdb;
+        - DROP USER 'ecomuser'@"{{ hostvars['app'].ansible_host }}"
+    - name: create DB add user
+      community.mysql.mysql_query:
+        login_user: root
+        query: 
+        - CREATE DATABASE ecomdb;
+        - CREATE USER 'ecomuser'@"{{ hostvars['app'].ansible_host }}" IDENTIFIED BY 'ecompassword';
+        - GRANT ALL PRIVILEGES ON *.* TO 'ecomuser'@"{{ hostvars['app'].ansible_host }}";
+        - FLUSH PRIVILEGES;
+      become: yes
+    - name: add information to the scheme
+      community.mysql.mysql_query:
+        login_user: root
+        login_db: ecomdb 
+        query:
+         - CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
+         - INSERT INTO products (Name,Price,ImageUrl) VALUES ("Laptop","100","c-1.png"),("Drone","200","c-2.png"),("VR","300","c-3.png"),("Tablet","50","c-5.png"),("Watch","90","c-6.png"),("Phone Covers","20","c-7.png"),("Phone","80","c-8.png"),("Laptop","150","c-4.png");
+-
+  name: Config php cluster 
+  hosts: app
+  tasks:
+    - name: Install required packages
+      yum:
+        name:
+        - httpd
+        - php
+        - php-mysql
+        - firewalld
+        - python3-pip
+        - MySQL-python
+        state: present
+      become: yes
+    - name: Change index file to php
+      shell: "sed -i 's/index.html/index.php/g' /etc/httpd/conf/httpd.conf"
+      become: yes
+    - name: add firewall rule for db
+      firewalld:
+        port: 80/tcp
+        permanent: true
+        state: enabled
+        zone: public
+      become: yes
+    - name: reload firewall 
+      systemd:
+        name: firewalld
+        state: restarted
+      become: yes
+    - name: start httpd
+      systemd:
+        service: httpd
+        state: started
+        enabled: true
+      become: yes
+    - name: isntall git
+      yum:
+        name: git
+        state: present
+      become: yes
+    - name: remove dir
+      shell: rm -rf /var/www/html/
+      become: yes
+    - name: clone repo
+      shell: git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+      ignore_errors: true
+      become: yes
+    - name: change mysql host
+      shell: "sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php"
+      become: yes
+
+
+
+
